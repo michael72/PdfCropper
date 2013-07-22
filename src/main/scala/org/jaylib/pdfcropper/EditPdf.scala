@@ -63,7 +63,7 @@ object EditPdf {
     }
     else (orig, cropBoxes.map(box => new PdfRectangle(box.x0, box.y0, box.x1, box.y1)).toArray)
     
-    val idxOffset = if (split.parts == 1) -1 else split.parts - offset
+    val idxOffset = if (split.parts == 1) 0 else offset
     for (i <- (offset to reader.getNumberOfPages()).par) {
       val pageDict = reader.getPageN(i)
       pageDict.put(CROPBOX, rects((i+idxOffset) % rects.length))

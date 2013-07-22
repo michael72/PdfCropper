@@ -1,38 +1,51 @@
 package org.jaylib.pdfcropper
-import java.util.prefs.Preferences.userNodeForPackage
+import org.jaylib.scala.config.macros.ConfigMacros
+import org.jaylib.scala.config.preferences.PreferencesConfig
 
 trait SettingsAsUserPrefs {
-  private val prefs = userNodeForPackage(getClass)
-  import UseAsPreferencesImplicits._
-  import java.util.prefs.Preferences
-  abstract class Prefs[T] extends UserPrefs[Preferences,T]
-  private val createPrefs = UserPrefs(prefs)
-
   /**
    * the number of doubled pixel-size lines that are together at the
    * end of the current and at the start of the next split
    */
-  protected val pagesBuffer = createPrefs("pagesBuffer", 5)
+  var pagesBuffer : Int
 
-  protected val callExec = createPrefs("callExec", true)
+  var callExec : Boolean
 
-  protected val leaveCover = createPrefs("leaveCover", true)
+  var leaveCover : Boolean
 
-  protected val rotateSplitPages = createPrefs("rotateSplitPages", 270)
+  var rotateSplitPages : Int
 
-  protected val twoPages = createPrefs("twoPages", false);
+  var twoPages : Boolean
   
-  protected val activeEditor = createPrefs("activeEditor", 1); // 1 = left, 2 = right, 3 = both
+  var activeEditor : Int // 1 = left, 2 = right, 3 = both
   
-  protected val sameHeight = createPrefs("sameHeight", true);
+  var sameHeight : Boolean
 
-  
   /** the number of pages considered when doing an auto crop */
-  protected val autoPagesNumber = createPrefs("autoPagesNumber", 5)
+  var autoPagesNumber : Int
 
-    /**
+  /**
    * Gets the saved initial directory as String or an empty String if nothing was saved.
    */
-  protected val initDir = createPrefs("initDir", "")
+  var initDir: String
   
+  /**
+   * Location of the ghostscript installation or just the name of ghostscript executable - if the executable is on the system path.
+   */
+  var ghostscript : String
+}
+
+class PdfCropperSettings
+
+object SettingsAsUserPrefs {
+  val defaults = Map(
+      "pagesBuffer" -> "5", "callExec" -> "true", "leaveCover" -> "true",
+      "rotateSplitPages" -> "270", "twoPages" -> "false",  
+      "activeEditor" -> "1", "sameHeight" -> "true", "autoPagesNumber" -> "5",
+      "initDir" -> "\"\"",
+      "ghostscript" -> "gswin32c.exe")
+  def apply() = {
+	  val cfg = new PreferencesConfig(classOf[PdfCropperSettings], defaults)
+	  ConfigMacros.wrap(classOf[SettingsAsUserPrefs], cfg.getProperty, cfg.setProperty)
+  }
 }

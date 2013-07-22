@@ -22,10 +22,10 @@ case class CropBox(val x0: Int, val y0: Int, val x1: Int, val y1: Int) {
   }.reverse.toArray
 
   override def toString = (x0, y0, x1, y1).toString
-
-  def shiftBy(cropBoxOrig: CropBox) = CropBox(
-    x0 + cropBoxOrig.x0, y0 + cropBoxOrig.y0,
-    x1 + cropBoxOrig.x0, y1 + cropBoxOrig.y0)
+  
+  def + (cropBoxAdd: CropBox) = CropBox(
+    x0 + cropBoxAdd.x0, y0 + cropBoxAdd.y0,
+    x1 + cropBoxAdd.x0, y1 + cropBoxAdd.y0)
 }
 
 object CropBox {

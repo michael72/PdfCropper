@@ -3,17 +3,17 @@ package org.jaylib.pdfcropper
 import java.awt.image.BufferedImage
 import java.io.File
 import Utils.usingTempFile
-import org.jaylib.pdfcropper.UserPrefsImplicits._
 
 /**
  * Contains the settings and general actions of the Cropper.
  */
 
-trait CropSettings extends SettingsAsUserPrefs {
-  def doublePages: Boolean = { twoPages.value }
+trait CropSettings {
+  val settings = SettingsAsUserPrefs()
+  def doublePages: Boolean = { settings.twoPages }
   def doublePages_=(two: Boolean): Unit
-  def isActiveEditor(index: Int) = ((activeEditor.value & (1 << index)) != 0)
-  def initialDir = initDir
+  def isActiveEditor(index: Int) = ((settings.activeEditor & (1 << index)) != 0)
+  def initialDir = settings.initDir
 }
 
 abstract class CropLogic extends CropSettings {
@@ -31,29 +31,29 @@ abstract class CropLogic extends CropSettings {
 
   private def setFile(newFile: File) {
     currentFile = newFile
-    initDir.value = file.getParent
+    settings.initDir = file.getParent
     numPages = EditPdf.getPageNumbers(file)
     if (numPages < 2)
       doublePages = false
     selectedPageNo = getInitPage
     try {
       currentCropBoxes(0) = EditPdf.getCropBox(file, pageNo)
-      if (twoPages) {
+      if (settings.twoPages) {
         currentCropBoxes(1) = EditPdf.getCropBox(file, pageNo + 1)
       }
     }
     catch {
       // the document does not contain a cropbox - use the document's size instead
       case _: Throwable =>
-        val img = GsImageLoader.load(currentFile, pageNo)
+        val img = GsImageLoader.load(currentFile, pageNo, this)
         currentCropBoxes(0) = CropBox(0, 0, img.getWidth, img.getHeight)
-        if (twoPages) {
-          val img = GsImageLoader.load(currentFile, pageNo + 1)
+        if (settings.twoPages) {
+          val img = GsImageLoader.load(currentFile, pageNo + 1, this)
           currentCropBoxes(1) = CropBox(0, 0, img.getWidth, img.getHeight)
         }
     }
     updateImage(0)
-    if (twoPages) {
+    if (settings.twoPages) {
       updateImage(1)
     }
   }
@@ -69,7 +69,7 @@ abstract class CropLogic extends CropSettings {
   protected def pageNo_=(newPageNo: Int) {
     selectedPageNo = newPageNo
     updateImage(0)
-    if (twoPages)
+    if (settings.twoPages)
       updateImage(1)
   }
 
@@ -77,8 +77,8 @@ abstract class CropLogic extends CropSettings {
    * Crops the current file.
    * @param splitNum: if 1 => no splitting done, >1: each page is split into splitNum parts
    */
-  def exportFile(splitNum: Int) = EditPdf.export(file, if (twoPages) currentCropBoxes.toList.reverse else List(currentCropBoxes(0)), leaveCover,
-    new EditPdf.SplitSettings(parts = splitNum, buffer = pagesBuffer, rotate = if (splitNum == 1) 0 else rotateSplitPages))
+  def exportFile(splitNum: Int) = EditPdf.export(file, if (settings.twoPages) currentCropBoxes.toList.reverse else List(currentCropBoxes(0)), settings.leaveCover,
+    new EditPdf.SplitSettings(parts = splitNum, buffer = settings.pagesBuffer, rotate = if (splitNum == 1) 0 else settings.rotateSplitPages))
 
   /**
    * Crops the current page.
@@ -95,16 +95,27 @@ abstract class CropLogic extends CropSettings {
   def setCropBox(index: Int, newCropBox: CropBox) = {
     oldCrop(index) = currentCropBoxes(index)
     currentCropBoxes(index) = newCropBox
-    if (twoPages && sameHeight && currentCropBoxes(0).height != currentCropBoxes(1).height) {
+    if (settings.twoPages && settings.sameHeight && currentCropBoxes(0).height != currentCropBoxes(1).height) {
       val otherIndex = if (index == 0) 1 else 0
       upateCropBoxY(otherIndex, newCropBox)
       updateImage(otherIndex)
     }
     updateImage(index)
   }
+  
+  def adjustCrop(index: Int, relativeCrop: CropBox) {
+    oldCrop(index) = currentCropBoxes(index)
+    currentCropBoxes(index) += relativeCrop
+    if (settings.twoPages && settings.sameHeight && currentCropBoxes(0).height != currentCropBoxes(1).height) {
+      val otherIndex = if (index == 0) 1 else 0
+      currentCropBoxes(otherIndex) += CropBox(0, relativeCrop.y0, 0, relativeCrop.y1)
+      updateImage(otherIndex)
+    }
+    updateImage(index)
+  }
 
   override def doublePages_=(two: Boolean) = {
-    twoPages.value = two
+    settings.twoPages = two
     if (two) {
       currentCropBoxes(1) = currentCropBoxes(0)
     }
@@ -117,7 +128,7 @@ abstract class CropLogic extends CropSettings {
     val eq = Array(currentCropBoxes(0) == oldCrop(0), currentCropBoxes(1) == oldCrop(1))
     currentCropBoxes.copyToArray(oldCrop)
     newCropBoxes.copyToArray(currentCropBoxes)
-    if (sameHeight && currentCropBoxes(0).height != currentCropBoxes(1).height) {
+    if (settings.sameHeight && currentCropBoxes(0).height != currentCropBoxes(1).height) {
       if (currentCropBoxes(0).height < currentCropBoxes(1).height) {
         upateCropBoxY(0, currentCropBoxes(1))
         eq(0) = false
@@ -135,32 +146,32 @@ abstract class CropLogic extends CropSettings {
   def revertCrop {
     currentCropBoxes(0) = oldCrop(0)
     updateImage(0)
-    if (twoPages) {
+    if (settings.twoPages) {
       currentCropBoxes(1) = oldCrop(1)
       updateImage(1)
     }
   }
 
   def incPage(inc: Int) {
-    pageNo = pageNo + { if (twoPages) 2 * inc else inc }
+    pageNo = pageNo + { if (settings.twoPages) 2 * inc else inc }
   }
   def firstPage { pageNo = 1 }
   def lastPage { pageNo = numPages }
   protected def getInitPage = (((numPages + 2) / 4) * 2 + 1) // half of the document, left page is ensured to be odd
   def initPage { pageNo = getInitPage }
 
-  def autoCrop(chkPages: Int = autoPagesNumber) {
-    val chk = if (chkPages < 2 && twoPages) 2 else chkPages
+  def autoCrop(chkPages: Int = settings.autoPagesNumber) {
+    val chk = if (chkPages < 2 && settings.twoPages) 2 else chkPages
     val first = (pageNo - (chk - 1) / 2).max(1)
     val last = (first + chk).min(numPages)
     val count = last - first + 1
     // calculate the crops for several pages using in parallel - using the "par"
-    val crops = for (page <- (first to last).par; cropOrig = cropBox((page + 1) & 1))
-      yield GsImageLoader.findAutoBox(GsImageLoader.load(file, page, cropOrig)).shiftBy(cropOrig)
+    val crops = for (page <- (first to last).par; cropShift = cropBox((page + 1) & 1))
+      yield GsImageLoader.findAutoBox(GsImageLoader.load(file, page, cropShift, this)) + cropShift
 
     // set the new crop box using the minimum/maximum values of the collected crops
     if (!crops.isEmpty) {
-      if (twoPages) {
+      if (settings.twoPages) {
         // build streams of crops - the first containing the odd (first, third, etc.) elements - the second the even
         def part(i: Int): Stream[CropBox] = crops(i) #:: part(i + 2)
         val boxes = Array(
@@ -178,19 +189,19 @@ abstract class CropLogic extends CropSettings {
   }
 
   protected def updateImage(index: Int) {
-    onUpdateImage(GsImageLoader.load(file, pageNo + index, currentCropBoxes(index)), index)
+    onUpdateImage(GsImageLoader.load(file, pageNo + index, currentCropBoxes(index), this), index)
   }
 
   def updateImages() {
-    onUpdateImage(GsImageLoader.load(file, pageNo, cropBox(0)), 0)
-    if (twoPages) {
-      onUpdateImage(GsImageLoader.load(file, pageNo + 1, cropBox(1)), 1)
+    onUpdateImage(GsImageLoader.load(file, pageNo, cropBox(0), this), 0)
+    if (settings.twoPages) {
+      onUpdateImage(GsImageLoader.load(file, pageNo + 1, cropBox(1), this), 1)
     }
   }
 
   def exec(f: File) {
     import scala.sys.process._
-    if (callExec)
+    if (settings.callExec)
       ("cmd /c \"" + f.getAbsolutePath + "\"").run
   }
 

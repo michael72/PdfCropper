@@ -24,9 +24,6 @@ class VisualCrop(
 
   private var anchorPt = new Point2D(0, 0);
 
-  onMouseEnteredProperty set ((_: MouseEvent) => getChildren.addAll(pathX, pathY))
-  onMouseExitedProperty.set((_: MouseEvent) => getChildren.removeAll(pathX, pathY))
-
   onMouseMovedProperty.set((event: MouseEvent) => {
     pathY.getElements.setAll(new MoveTo(borderWitdh, event.getY), new LineTo(imvBox.getImageWidth+2*borderWitdh, event.getY))
     if (event.getX < imvBox.getImageWidth+4*borderWitdh)
@@ -54,6 +51,8 @@ class VisualCrop(
   onMouseReleasedProperty.set((event: MouseEvent) => {
     updateCrop
   })
+  
+
 
   def updateCrop {
     if (rect.getHeight > 10 || rect.getWidth > 10) {

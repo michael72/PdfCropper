@@ -2,7 +2,6 @@ package org.jaylib.pdfcropper.fx
 import java.awt.image.BufferedImage
 import java.io.File
 import org.jaylib.pdfcropper.CropLogic
-import org.jaylib.pdfcropper.UserPrefs
 import org.jaylib.pdfcropper.Utils.function2EventHandler
 import javafx.beans.property.{ Property, SimpleBooleanProperty, SimpleIntegerProperty }
 import javafx.beans.value.{ ChangeListener, ObservableValue }
@@ -21,7 +20,8 @@ import javafx.scene.control.TextField
 import com.sun.javafx.scene.control.skin.TextInputControlSkin
 import com.sun.javafx.scene.control.behavior.TextInputControlBehavior
 import javafx.scene.control.Skin
-import org.jaylib.pdfcropper.UserPrefsImplicits._
+import java.io.IOException
+import javafx.stage.FileChooser.ExtensionFilter
 
 class CropLogicFx(
     protected val stage: Stage,
@@ -54,6 +54,28 @@ class CropLogicFx(
       stage.setTitle("Pdf Cropper - " + newFile.getName);
     }
     catch {
+      case iox: IOException if (iox.getMessage.contains("CreateProcess error=2")) => 
+        new Stage {
+          initModality(Modality.APPLICATION_MODAL)
+          setScene(new Scene(
+            new VBox {
+              getChildren.add(new Text("Ghostscript could not be found: " + 
+                  "please provide the location of the ghostscript executable"))
+              getChildren.add(createButton(close, "Provide location"))
+              setAlignment(CENTER)
+              setPadding(new Insets(5))
+            }))
+        }.showAndWait
+      val fcPdf = new FileChooser
+      fcPdf.setTitle("Select Ghostscript executable")
+      fcPdf.getExtensionFilters.add(new ExtensionFilter("Excutable", "*.exe"))
+
+      val gs = fcPdf.showOpenDialog(stage)
+      if (gs != null) {
+        settings.ghostscript = gs.getAbsolutePath 
+        file = newFile
+      }
+      
       case t: Throwable =>
         t.printStackTrace
         new Stage {
@@ -78,7 +100,7 @@ class CropLogicFx(
     val spinner = new ListSpinner[Integer](min, max)
     spinner.valueProperty.bindBidirectional(new SimpleIntegerProperty {
       override def get = getter
-      override def set(value: Int) = setter
+      override def set(value: Int) = setter(value)
     }.asInstanceOf[Property[java.lang.Integer]])
     spinner
   }
@@ -122,13 +144,13 @@ class CropLogicFx(
               add(item, 1, row)
               row += 1
             }
-            addItem("Leave Coverpage uncropped", createCheckBox(leaveCover, leaveCover))
-            addItem("Open PDF reader after export", createCheckBox(callExec.value, callExec.value = _))
+            addItem("Leave Coverpage uncropped", createCheckBox(settings.leaveCover, settings.leaveCover = _))
+            addItem("Open PDF reader after export", createCheckBox(settings.callExec, settings.callExec = _))
             addItem("Rotate split pages by", createChoiceBox(
-              Array("Do not rotate", "90deg (right)", "270deg (left)"), Array(0, 90, 270), rotateSplitPages.value, rotateSplitPages.value = _))
+              Array("Do not rotate", "90deg (right)", "270deg (left)"), Array(0, 90, 270), settings.rotateSplitPages, settings.rotateSplitPages = _))
 
-            addItem("Buffer between split pages", createSpinner(pagesBuffer, pagesBuffer, 1, 100))
-            addItem("Number of Pages in AutoCrop", createSpinner(autoPagesNumber, autoPagesNumber, 2, 100))
+            addItem("Buffer between split pages", createSpinner(settings.pagesBuffer, settings.pagesBuffer = _, 1, 100))
+            addItem("Number of Pages in AutoCrop", createSpinner(settings.autoPagesNumber, settings.autoPagesNumber = _, 2, 100))
 
             val myTextField = new TextField()
 
@@ -136,7 +158,7 @@ class CropLogicFx(
               Some(s.toDouble)
             }
             catch {
-              case _ => None
+              case _ : Throwable => None
             }
 
           }, createButton(close, "OK"))
@@ -165,12 +187,12 @@ class CropLogicFx(
         doublePages = false
       else {
         doublePages = true
-        activeEditor.value = index
+        settings.activeEditor = index
       }
       if (old != doublePages)
         onUpdateDoublePages
     }
-    imvBox.updateBorderStyle(twoPages, activeEditor)
+    imvBox.updateBorderStyle(settings.twoPages, settings.activeEditor)
   }
 
   def swapActiveEdit {
@@ -178,7 +200,7 @@ class CropLogicFx(
   }
   def getViewChoice(): Int = {
     if (!doublePages) 0
-    else activeEditor
+    else settings.activeEditor
   }
   def onUpdateDoublePages = {
     choiceTwo.getSelectionModel().select(getViewChoice())

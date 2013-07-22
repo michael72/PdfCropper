@@ -25,24 +25,24 @@ class KeyboardCrop(
       lastKey = newKey
     }
 
-    def setCrop(x0: Int, y0: Int, x1: Int, y1: Int) = {
+    def adjustCrop(x0: Int, y0: Int, x1: Int, y1: Int) = {
       for (page <- 0 to 1; if logic.isActiveEditor(page))
-        logic.setCropBox(page, CropBox(x0, y0, x1, y1))
+        logic.adjustCrop(page, CropBox(x0, y0, x1, y1))
     }
     val c = logic.cropBox(if (logic.isActiveEditor(0)) 0 else 1) 
     newKey match {
       // keys to set the CropBox
-      case (RIGHT, false)     => setCrop(c.x0 - d, c.y0, c.x1 - d, c.y1)
-      case (RIGHT, true)      => setCrop(c.x0 - d, c.y0, c.x1 + d, c.y1)
-      case (LEFT, false)      => setCrop(c.x0 + d, c.y0, c.x1 + d, c.y1)
-      case (LEFT, true)       => setCrop(c.x0 + d, c.y0, c.x1 - d, c.y1)
-      case (DOWN, false)      => setCrop(c.x0, c.y0 + d, c.x1, c.y1 + d)
-      case (DOWN, true)       => setCrop(c.x0, c.y0 - d, c.x1, c.y1 + d)
-      case (UP, false)        => setCrop(c.x0, c.y0 - d, c.x1, c.y1 - d)
-      case (UP, true)         => setCrop(c.x0, c.y0 + d, c.x1, c.y1 - d)
-      case (PLUS, false)      => setCrop(c.x0 - d, c.y0 - d, c.x1 + d, c.y1 + d)
-      case (EQUALS, false)    => setCrop(c.x0 - d, c.y0 - d, c.x1 + d, c.y1 + d)
-      case (MINUS, false)     => setCrop(c.x0 + d, c.y0 + d, c.x1 - d, c.y1 - d)
+      case (RIGHT, false)     => adjustCrop(-d, 0, -d, 0)
+      case (RIGHT, true)      => adjustCrop(-d, 0, d, 0)
+      case (LEFT, false)      => adjustCrop(d, 0, d, 0)
+      case (LEFT, true)       => adjustCrop(d, 0, -d, 0)
+      case (DOWN, false)      => adjustCrop(0, d, 0, d)
+      case (DOWN, true)       => adjustCrop(0, -d, 0, d)
+      case (UP, false)        => adjustCrop(0, -d, 0, -d)
+      case (UP, true)         => adjustCrop(0, d, 0, -d)
+      case (PLUS, false)      => adjustCrop(-d, -d, d, d)
+      case (EQUALS, false)    => adjustCrop(-d, -d, d, d)
+      case (MINUS, false)     => adjustCrop(d, d, -d, -d)
       // keys to select the page
       case (SPACE, false)     => logic.swapActiveEdit
       case (PAGE_UP, false)   => logic.incPage(-1)

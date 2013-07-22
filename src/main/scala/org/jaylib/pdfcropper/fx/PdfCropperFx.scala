@@ -2,7 +2,6 @@ package org.jaylib.pdfcropper.fx
 import java.io.File
 
 import org.jaylib.pdfcropper.Utils.function2EventHandler
-import org.jaylib.pdfcropper.UserPrefsImplicits._
 
 import javafx.application.Application
 import javafx.event.ActionEvent
@@ -81,7 +80,7 @@ class PdfCropperFx extends Application {
       getChildren.addAll(menuBar, buttonPane)
     }, 300, 300))
 
-    logic.file = PdfCropperFx.initialPdf match {
+    val newFile = PdfCropperFx.initialPdf match {
       case Some(file) if new File(file).exists => new File(file)
       case _ =>
         val initDir = logic.initialDir
@@ -100,7 +99,10 @@ class PdfCropperFx extends Application {
         }
     }
 
-    stage.show
+    if (newFile != null) {
+      logic.file = newFile
+      stage.show
+    }
   }
 }
 

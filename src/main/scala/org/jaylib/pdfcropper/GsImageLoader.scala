@@ -2,21 +2,20 @@ package org.jaylib.pdfcropper
 
 import java.awt.image.BufferedImage
 import java.io.File
-
 import scala.sys.process._
 import scala.util.Try
-
 import javax.imageio.ImageIO
 import Utils.usingTempFile
+import java.io.IOException
 
 object GsImageLoader {
 
-  private def loadImage(pdf: File, page: Int, sizeCmd: Seq[String]) = {
+  private def loadImage(pdf: File, page: Int, sizeCmd: Seq[String], cropSettings: CropSettings) = {
     if (!pdf.exists)
       throw new IllegalArgumentException(pdf.getAbsolutePath() + " does not exist!")
-
+   
     usingTempFile(File.createTempFile("img", ".png")) { temp =>
-      (Seq("gswin32c.exe", "-q",
+      (Seq(cropSettings.settings.ghostscript, "-q",
         f"-o${temp.getAbsolutePath()}", "-sDEVICE=png256",
         f"-dFirstPage=${page}", f"-dLastPage=${page}") ++
         sizeCmd ++
@@ -31,7 +30,7 @@ object GsImageLoader {
    * @param page: the page number to print
    * @return the page as an image
    */
-  def load(pdf: File, page: Int): BufferedImage = loadImage(pdf, page, Seq("-dUseCropBox"))
+  def load(pdf: File, page: Int, cropSettings: CropSettings): BufferedImage = loadImage(pdf, page, Seq("-dUseCropBox"), cropSettings)
 
   /**
    * Uses ghostscript to create a png image of a PDF for a given page number
@@ -40,9 +39,9 @@ object GsImageLoader {
    * @param page: the page number to print
    * @return the page as an image
    */
-  def load(pdf: File, page: Int, crop: CropBox): BufferedImage = loadImage(pdf, page,
+  def load(pdf: File, page: Int, crop: CropBox, cropSettings: CropSettings): BufferedImage = loadImage(pdf, page,
     Seq(f"-g${crop.width}x${crop.height}",
-      "-c", f"<</Install {${crop.width - crop.x1} ${crop.height - crop.y1} translate}>> setpagedevice"))
+      "-c", f"<</Install {${crop.width - crop.x1} ${crop.height - crop.y1} translate}>> setpagedevice"), cropSettings)
 
   class AlgorithmSettings(val limit: Double = 0.01, val chkSize: Int = 7, val widenBy: Int = 1)
 
