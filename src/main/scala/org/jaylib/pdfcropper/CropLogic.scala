@@ -3,9 +3,13 @@ package org.jaylib.pdfcropper
 import java.awt.image.BufferedImage
 import java.io.File
 import Utils.usingTempFile
+import akka.actor.Props
+import akka.actor.ActorSystem
+import akka.actor.Actor
+import akka.actor.ActorRef
+import akka.actor.PoisonPill
 
-/**
- * Contains the settings and general actions of the Cropper.
+/** Contains the settings and general actions of the Cropper.
  */
 
 trait CropSettings {
@@ -58,8 +62,7 @@ abstract class CropLogic extends CropSettings {
     }
   }
   def file = currentFile
-  /**
-   * Sets the current file - used when loading or reloading a file.
+  /** Sets the current file - used when loading or reloading a file.
    */
   def file_=(newFile: File) { setFile(newFile) }
 
@@ -73,23 +76,20 @@ abstract class CropLogic extends CropSettings {
       updateImage(1)
   }
 
-  /**
-   * Crops the current file.
-   * @param splitNum: if 1 => no splitting done, >1: each page is split into splitNum parts
+  /** Crops the current file.
+   *  @param splitNum: if 1 => no splitting done, >1: each page is split into splitNum parts
    */
   def exportFile(splitNum: Int) = EditPdf.export(file, if (settings.twoPages) currentCropBoxes.toList.reverse else List(currentCropBoxes(0)), settings.leaveCover,
     new EditPdf.SplitSettings(parts = splitNum, buffer = settings.pagesBuffer, rotate = if (splitNum == 1) 0 else settings.rotateSplitPages))
 
-  /**
-   * Crops the current page.
-   * @param splitNum: if 1 => no splitting done, >1: each page is split into splitNum parts
+  /** Crops the current page. Uses only the y-settings.
+   *  @param splitNum: if 1 => no splitting done, >1: each page is split into splitNum parts
    */
   private[this] def upateCropBoxY(index: Int, cropBox: CropBox) {
     val copy = currentCropBoxes(index)
     currentCropBoxes(index) = CropBox(copy.x0, cropBox.y0, copy.x1, cropBox.y1)
   }
-  /**
-   * Updates the CropBox.
+  /** Updates the CropBox.
    */
   def cropBox(index: Int) = currentCropBoxes(index)
   def setCropBox(index: Int, newCropBox: CropBox) = {
@@ -102,10 +102,11 @@ abstract class CropLogic extends CropSettings {
     }
     updateImage(index)
   }
-  
+
   def adjustCrop(index: Int, relativeCrop: CropBox) {
     oldCrop(index) = currentCropBoxes(index)
     currentCropBoxes(index) += relativeCrop
+    onShiftImage(relativeCrop, index)
     if (settings.twoPages && settings.sameHeight && currentCropBoxes(0).height != currentCropBoxes(1).height) {
       val otherIndex = if (index == 0) 1 else 0
       currentCropBoxes(otherIndex) += CropBox(0, relativeCrop.y0, 0, relativeCrop.y1)
@@ -129,6 +130,7 @@ abstract class CropLogic extends CropSettings {
     currentCropBoxes.copyToArray(oldCrop)
     newCropBoxes.copyToArray(currentCropBoxes)
     if (settings.sameHeight && currentCropBoxes(0).height != currentCropBoxes(1).height) {
+      // same height option is set -> use the minimum height for both crop boxes
       if (currentCropBoxes(0).height < currentCropBoxes(1).height) {
         upateCropBoxY(0, currentCropBoxes(1))
         eq(0) = false
@@ -140,8 +142,7 @@ abstract class CropLogic extends CropSettings {
     }
     for (i <- 0 to 1) if (!eq(i)) updateImage(i)
   }
-  /**
-   * Reverts the cropBox to the previous value (undo).
+  /** Reverts the cropBox to the previous value (undo).
    */
   def revertCrop {
     currentCropBoxes(0) = oldCrop(0)
@@ -172,8 +173,8 @@ abstract class CropLogic extends CropSettings {
     // set the new crop box using the minimum/maximum values of the collected crops
     if (!crops.isEmpty) {
       if (settings.twoPages) {
-        // build streams of crops - the first containing the odd (first, third, etc.) elements - the second the even
-        def part(i: Int): Stream[CropBox] = crops(i) #:: part(i + 2)
+          // build streams of crops - the first containing the odd (first, third, etc.) elements - the second the even
+          def part(i: Int): Stream[CropBox] = crops(i) #:: part(i + 2)
         val boxes = Array(
           part(0).take((count + 1) / 2),
           part(1).take(count / 2)).map(crops2 =>
@@ -189,13 +190,15 @@ abstract class CropLogic extends CropSettings {
   }
 
   protected def updateImage(index: Int) {
-    onUpdateImage(GsImageLoader.load(file, pageNo + index, currentCropBoxes(index), this), index)
+    import CropLogic._
+
+    master ! LoadImage(file, pageNo + index, currentCropBoxes(index), this, index)
   }
 
   def updateImages() {
-    onUpdateImage(GsImageLoader.load(file, pageNo, cropBox(0), this), 0)
+    updateImage(0)
     if (settings.twoPages) {
-      onUpdateImage(GsImageLoader.load(file, pageNo + 1, cropBox(1), this), 1)
+      updateImage(1)
     }
   }
 
@@ -207,7 +210,48 @@ abstract class CropLogic extends CropSettings {
 
   protected def onUpdateImage(image: BufferedImage, index: Int)
   protected def onClearImage(index: Int)
+  protected def onShiftImage(relativeCrop: CropBox, index: Int)
 
   def configOptions()
 }
 
+object CropLogic {
+  val system = ActorSystem("updateImage")
+  val master = system.actorOf(Props[Master], "master")
+  val updaters = Array(system.actorOf(Props[ImageUpdater], "updater0"), system.actorOf(Props[ImageUpdater], "updater1"))
+
+  case class LoadImage(pdf: File, page: Int, crop: CropBox, cropLogic: CropLogic, index: Int)
+  case class FinishedLoading(cropLogic: CropLogic, image: BufferedImage, index: Int)
+  
+  def onExit : Unit = {
+    system.shutdown
+  }
+
+  class Master extends Actor {
+    private var loading: Boolean = false
+    private var count = 0
+    def receive = {
+      case loadImage: LoadImage =>
+        if (loading) {
+            // kill the old and create a new updater
+            updaters(loadImage.index) ! PoisonPill
+            updaters(loadImage.index) = system.actorOf(Props[ImageUpdater], s"updater${count}_${loadImage.index}")   
+            count += 1
+        }
+        updaters(loadImage.index) ! loadImage
+        loading = true
+      case FinishedLoading(cropLogic, image, index) =>
+        if (sender == updaters(index)) {
+        	cropLogic.onUpdateImage(image, index)
+        	loading = false
+        }
+    }
+  }
+  class ImageUpdater extends Actor {
+    def receive = {
+      case LoadImage(pdf, page, crop, cropLogic, index) =>
+        master ! FinishedLoading(cropLogic, GsImageLoader.load(pdf, page, crop, cropLogic), index)
+    }
+  }
+
+}

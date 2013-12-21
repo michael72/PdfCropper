@@ -18,8 +18,10 @@ class KeyboardCrop(
 
   private val keyHandler = ((event: KeyEvent) => {
     val newKey = (event.getCode -> event.isShiftDown)
+    // if the same key is hit again and again, the new distance the crop is shifted
+    // will be doubled - maximum is 8.
     if (lastKey == newKey)
-      dist = Math.min(8, d * 2)
+      dist = 8.min(d*2)
     else {
       dist = 1
       lastKey = newKey
@@ -32,11 +34,11 @@ class KeyboardCrop(
     val c = logic.cropBox(if (logic.isActiveEditor(0)) 0 else 1) 
     newKey match {
       // keys to set the CropBox
-      case (RIGHT, false)     => adjustCrop(-d, 0, -d, 0)
-      case (RIGHT, true)      => adjustCrop(-d, 0, d, 0)
-      case (LEFT, false)      => adjustCrop(d, 0, d, 0)
-      case (LEFT, true)       => adjustCrop(d, 0, -d, 0)
-      case (DOWN, false)      => adjustCrop(0, d, 0, d)
+      case (RIGHT, false)     => adjustCrop(-d, 0, -d, 0) // > >
+      case (RIGHT, true)      => adjustCrop(-d, 0, d, 0)  // < >
+      case (LEFT, false)      => adjustCrop(d, 0, d, 0)   // < <
+      case (LEFT, true)       => adjustCrop(d, 0, -d, 0)  // > <
+      case (DOWN, false)      => adjustCrop(0, d, 0, d)  
       case (DOWN, true)       => adjustCrop(0, -d, 0, d)
       case (UP, false)        => adjustCrop(0, -d, 0, -d)
       case (UP, true)         => adjustCrop(0, d, 0, -d)

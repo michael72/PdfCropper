@@ -13,20 +13,44 @@ class ImageContainer extends HBox {
   private var twoPagesGetter: (Unit => Boolean) = null
   def init(twoPages: (Unit => Boolean)) {
     twoPagesGetter = twoPages
+    imvs.foreach { imv =>
+      imv.setSmooth(true)
+      imv.setPreserveRatio(true)
+    }
   }
 
+  val maxSize = java.awt.Toolkit.getDefaultToolkit.getScreenSize
+  val HEIGHT_OFFSET = 50
   def getImageHeight: Int = {
-    if (twoPagesGetter() && imvs(1).getImage != null)
-      imvs(0).getImage.getHeight.max(imvs(1).getImage.getHeight)
-    else imvs(0).getImage.getHeight
-  }.toInt
+    val heights: Array[Double] = imvs.map { imv =>
+      if (imv != null && imv.getImage != null)
+        imv.getImage.getHeight
+      else 0
+    }
+    val ret = if (twoPagesGetter())
+      heights.max
+    else heights(0)
+    if (ret > maxSize.getHeight - HEIGHT_OFFSET) {
+      imvs.foreach { imv =>
+        if (imv != null) {
+          imv.setFitHeight(maxSize.getHeight - HEIGHT_OFFSET)
+        }
+      }
+      (maxSize.getHeight - HEIGHT_OFFSET).toInt
+    } else ret.toInt
+  }
 
   def getImageWidth: Int = {
-    if (twoPagesGetter() && imvs(1).getImage != null)
-      imvs(0).getImage.getWidth + imvs(1).getImage.getWidth
-    else imvs(0).getImage.getWidth
-  }.toInt
-  
+    if (imvs == null)
+      0
+    else {
+      val widths = imvs.map(imv => if (imv != null && imv.getImage != null) imv.getImage.getWidth else 0)
+      (if (twoPagesGetter())
+        widths.sum
+      else widths(0)).toInt
+    }
+  }
+
   def apply(idx: Int) = imvs(idx).getImage
 
   boxes(0).getChildren.add(imvs(0))
@@ -43,12 +67,11 @@ class ImageContainer extends HBox {
         boxes(1).setStyle(s"-fx-border-color: #A0C8FF; -fx-border-width: ${borderWidth};")
       else
         boxes(1).setStyle(s"-fx-border-color: #C0C0C0; -fx-border-width: ${borderWidth};")
-    }
-    else {
+    } else {
       boxes(1).setStyle(s"-fx-border-color: #FFFFFF; -fx-border-width: 0;")
     }
   }
-  
+
   def getPreferredWidth = {
     getImageWidth + { if (twoPagesGetter()) 40 else 30 }
   }

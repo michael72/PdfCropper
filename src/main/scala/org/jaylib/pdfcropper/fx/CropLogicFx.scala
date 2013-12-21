@@ -22,13 +22,15 @@ import com.sun.javafx.scene.control.behavior.TextInputControlBehavior
 import javafx.scene.control.Skin
 import java.io.IOException
 import javafx.stage.FileChooser.ExtensionFilter
+import javafx.geometry.Rectangle2D
+import org.jaylib.pdfcropper.CropBox
 
 class CropLogicFx(
     protected val stage: Stage,
     protected val fc: FileChooser,
     val imvBox: ImageContainer) extends CropLogic {
 
-  imvBox.init(_ => doublePages)
+  imvBox.init(_ => doublePages) // initialize the imvBox with a getter for the doublePages-Property
   protected val choiceTwo: ChoiceBox[String] = createChoiceBox(
     Array("1 Page View", "2 Pages - Keys Left", "2 Pages - Keys Right", "2 Pages - Keys Both"),
     Array(0, 1, 2, 3), getViewChoice, { value => updateViewChoice(value) })
@@ -39,7 +41,17 @@ class CropLogicFx(
   }
   override protected def onUpdateImage(image: BufferedImage, index: Int) {
     imvBox.imvs(index).setImage(SwingFXUtils.toFXImage(image, null))
+    imvBox.imvs(index).setViewport(null)
     updateStage
+  }
+  
+  override protected def onShiftImage(relativeCrop: CropBox, index: Int) {
+    val imv = imvBox.imvs(index)
+    val view = imv.getViewport match {
+      case null => new Rectangle2D(0,0,imv.getBoundsInParent.getWidth, imv.getBoundsInParent.getHeight)
+      case x => x
+    }
+    imv.setViewport(new Rectangle2D(view.getMinX + relativeCrop.x0, view.getMinY - relativeCrop.y0, view.getWidth + relativeCrop.x1, view.getHeight + relativeCrop.y1))
   }
 
   override protected def onClearImage(index: Int) {
@@ -122,7 +134,7 @@ class CropLogicFx(
         setter(values(newVal.asInstanceOf[Int]))
       }
     })
-    choice.getSelectionModel().select(values.indexOf(getter))
+    choice.getSelectionModel.select(values.indexOf(getter))
     choice
   }
 
@@ -152,7 +164,7 @@ class CropLogicFx(
             addItem("Buffer between split pages", createSpinner(settings.pagesBuffer, settings.pagesBuffer = _, 1, 100))
             addItem("Number of Pages in AutoCrop", createSpinner(settings.autoPagesNumber, settings.autoPagesNumber = _, 2, 100))
 
-            val myTextField = new TextField()
+            val myTextField = new TextField
 
             def parseDouble(s: String) = try {
               Some(s.toDouble)
@@ -196,15 +208,15 @@ class CropLogicFx(
   }
 
   def swapActiveEdit {
-    choiceTwo.getSelectionModel().select((getViewChoice + 1) & 3)
+    choiceTwo.getSelectionModel.select((getViewChoice + 1) & 3)
   }
-  def getViewChoice(): Int = {
+  def getViewChoice: Int = {
     if (!doublePages) 0
     else settings.activeEditor
   }
   def onUpdateDoublePages = {
-    choiceTwo.getSelectionModel().select(getViewChoice())
-    updateImages()
+    choiceTwo.getSelectionModel.select(getViewChoice)
+    updateImages
   }
   lazy val buttons = Array[Control](
     createButton(exec(exportFile(1)), "Export"),

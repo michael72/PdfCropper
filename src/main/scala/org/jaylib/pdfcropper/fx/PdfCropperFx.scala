@@ -1,8 +1,6 @@
 package org.jaylib.pdfcropper.fx
 import java.io.File
-
 import org.jaylib.pdfcropper.Utils.function2EventHandler
-
 import javafx.application.Application
 import javafx.event.ActionEvent
 import javafx.geometry.Insets
@@ -11,6 +9,7 @@ import javafx.scene.control.{ Menu, MenuBar, MenuItem, SeparatorMenuItem }
 import javafx.scene.layout.{ HBox, VBox }
 import javafx.stage.{ FileChooser, Stage }
 import javafx.stage.FileChooser.ExtensionFilter
+import org.jaylib.pdfcropper.CropLogic
 
 class PdfCropperFx extends Application {
 
@@ -32,11 +31,15 @@ class PdfCropperFx extends Application {
           getChildren().add(button)
       })
     }
-
+    
     val menuBar = new MenuBar {
       def createMenuItem(action: => Any, txt: String = "") = new MenuItem {
         setText(txt)
         setOnAction((_: ActionEvent) => action)
+      }
+      def onExit {
+        stage.close
+        CropLogic.onExit
       }
       getMenus.addAll(
         new Menu(
@@ -52,7 +55,7 @@ class PdfCropperFx extends Application {
             createMenuItem(logic.exec(logic.exportFile(2)),
               "Split & Export to File"),
             new SeparatorMenuItem,
-            createMenuItem(stage.close,
+            createMenuItem(onExit,
               "Exit"))
         },
         new Menu(

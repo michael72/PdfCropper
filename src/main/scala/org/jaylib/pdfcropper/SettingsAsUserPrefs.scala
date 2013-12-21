@@ -39,9 +39,14 @@ class PdfCropperSettings
 
 object SettingsAsUserPrefs {
   val defaults = Map(
-      "pagesBuffer" -> "5", "callExec" -> "true", "leaveCover" -> "true",
-      "rotateSplitPages" -> "270", "twoPages" -> "false",  
-      "activeEditor" -> "1", "sameHeight" -> "true", "autoPagesNumber" -> "5",
+      "pagesBuffer" -> "5", 
+      "callExec" -> "true", 
+      "leaveCover" -> "true",
+      "rotateSplitPages" -> "270", 
+      "twoPages" -> "false",  
+      "activeEditor" -> "1", 
+      "sameHeight" -> "true", 
+      "autoPagesNumber" -> "5",
       "initDir" -> "\"\"",
       "ghostscript" -> "gswin32c.exe")
   def apply() = {
