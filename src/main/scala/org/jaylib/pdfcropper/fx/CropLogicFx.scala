@@ -55,9 +55,14 @@ class CropLogicFx(
   }
 
   override protected def onClearImage(index: Int) {
-    imvBox.imvs(index).setImage(SwingFXUtils.toFXImage(
-      new BufferedImage(imvBox.imvs(index).getImage.getWidth.toInt, imvBox.imvs(index).getImage.getHeight.toInt, BufferedImage.TYPE_INT_ARGB), null))
-    updateStage
+    try {
+	    imvBox.imvs(index).setImage(SwingFXUtils.toFXImage(
+	      new BufferedImage(imvBox.imvs(index).getImage.getWidth.toInt, imvBox.imvs(index).getImage.getHeight.toInt, BufferedImage.TYPE_INT_ARGB), null))
+	    updateStage
+    }
+    catch {
+      case t: Throwable => 
+    }
   }
 
   override def file_=(newFile: File) {
