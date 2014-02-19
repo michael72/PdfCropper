@@ -51,7 +51,8 @@ class CropLogicFx(
       case null => new Rectangle2D(0,0,imv.getBoundsInParent.getWidth, imv.getBoundsInParent.getHeight)
       case x => x
     }
-    imv.setViewport(new Rectangle2D(view.getMinX + relativeCrop.x0, view.getMinY - relativeCrop.y0, view.getWidth + relativeCrop.x1, view.getHeight + relativeCrop.y1))
+    imv.setViewport(new Rectangle2D(view.getMinX + relativeCrop.x0, view.getMinY - relativeCrop.y1, 
+        view.getWidth + relativeCrop.x1 - relativeCrop.x0, view.getHeight + relativeCrop.y1 - relativeCrop.y0))
   }
 
   override protected def onClearImage(index: Int) {

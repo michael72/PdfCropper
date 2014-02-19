@@ -23,9 +23,13 @@ case class CropBox(val x0: Int, val y0: Int, val x1: Int, val y1: Int) {
 
   override def toString = (x0, y0, x1, y1).toString
   
-  def + (cropBoxAdd: CropBox) = CropBox(
+  def shiftUpperLeft (cropBoxAdd: CropBox) = CropBox(
     x0 + cropBoxAdd.x0, y0 + cropBoxAdd.y0,
     x1 + cropBoxAdd.x0, y1 + cropBoxAdd.y0)
+    
+  def adjustBy (cropBoxAdjust: CropBox) = CropBox(
+      x0 + cropBoxAdjust.x0, y0 + cropBoxAdjust.y0,
+      x1 + cropBoxAdjust.x1, y1 + cropBoxAdjust.y1)
 }
 
 object CropBox {

@@ -10,6 +10,7 @@ import javafx.scene.layout.{ HBox, VBox }
 import javafx.stage.{ FileChooser, Stage }
 import javafx.stage.FileChooser.ExtensionFilter
 import org.jaylib.pdfcropper.CropLogic
+import javafx.stage.WindowEvent
 
 class PdfCropperFx extends Application {
 
@@ -31,7 +32,7 @@ class PdfCropperFx extends Application {
           getChildren().add(button)
       })
     }
-    
+
     val menuBar = new MenuBar {
       def createMenuItem(action: => Any, txt: String = "") = new MenuItem {
         setText(txt)
@@ -39,8 +40,8 @@ class PdfCropperFx extends Application {
       }
       def onExit {
         stage.close
-        CropLogic.onExit
       }
+
       getMenus.addAll(
         new Menu(
           "File") {
@@ -82,7 +83,11 @@ class PdfCropperFx extends Application {
     stage.setScene(new Scene(new VBox {
       getChildren.addAll(menuBar, buttonPane)
     }, 300, 300))
-
+    stage.setOnCloseRequest {
+      (_: WindowEvent) =>
+        // when closing the primary stage, inform the Logic
+        CropLogic.onExit
+    }
     val newFile = PdfCropperFx.initialPdf match {
       case Some(file) if new File(file).exists => new File(file)
       case _ =>
@@ -90,12 +95,11 @@ class PdfCropperFx extends Application {
         if (!initDir.isEmpty) {
           val f = new File(initDir)
           if (f.exists() && f.isDirectory())
-        	  fc.setInitialDirectory(new File(initDir))
+            fc.setInitialDirectory(new File(initDir))
         }
         try {
           fc.showOpenDialog(stage)
-        }
-        catch {
+        } catch {
           case e: Exception =>
             fc.setInitialDirectory(new File(System.getProperty("user.home")))
             fc.showOpenDialog(stage)

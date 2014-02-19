@@ -45,8 +45,7 @@ abstract class CropLogic extends CropSettings {
       if (settings.twoPages) {
         currentCropBoxes(1) = EditPdf.getCropBox(file, pageNo + 1)
       }
-    }
-    catch {
+    } catch {
       // the document does not contain a cropbox - use the document's size instead
       case _: Throwable =>
         val img = GsImageLoader.load(currentFile, pageNo, this)
@@ -105,22 +104,23 @@ abstract class CropLogic extends CropSettings {
 
   def adjustCrop(index: Int, relativeCrop: CropBox) {
     oldCrop(index) = currentCropBoxes(index)
-    currentCropBoxes(index) += relativeCrop
+    currentCropBoxes(index) = currentCropBoxes(index).adjustBy(relativeCrop);
     onShiftImage(relativeCrop, index)
-    if (settings.twoPages && settings.sameHeight && currentCropBoxes(0).height != currentCropBoxes(1).height) {
+    updateImage(index)
+    // update the height for "same height" setting (but only if y-coordinates are not involved in the current crop)
+    if (relativeCrop.y0 == 0 && relativeCrop.y1 == 0 &&
+      settings.twoPages && settings.sameHeight && currentCropBoxes(0).height != currentCropBoxes(1).height) {
       val otherIndex = if (index == 0) 1 else 0
-      currentCropBoxes(otherIndex) += CropBox(0, relativeCrop.y0, 0, relativeCrop.y1)
+      currentCropBoxes(otherIndex) = currentCropBoxes(otherIndex).adjustBy(CropBox(0, relativeCrop.y0, 0, relativeCrop.y1))
       updateImage(otherIndex)
     }
-    updateImage(index)
   }
 
   override def doublePages_=(two: Boolean) = {
     settings.twoPages = two
     if (two) {
       currentCropBoxes(1) = currentCropBoxes(0)
-    }
-    else {
+    } else {
       onClearImage(1)
     }
   }
@@ -134,8 +134,7 @@ abstract class CropLogic extends CropSettings {
       if (currentCropBoxes(0).height < currentCropBoxes(1).height) {
         upateCropBoxY(0, currentCropBoxes(1))
         eq(0) = false
-      }
-      else {
+      } else {
         upateCropBoxY(1, currentCropBoxes(0))
         eq(1) = false
       }
@@ -168,13 +167,13 @@ abstract class CropLogic extends CropSettings {
     val count = last - first + 1
     // calculate the crops for several pages using in parallel - using the "par"
     val crops = for (page <- (first to last).par; cropShift = cropBox((page + 1) & 1))
-      yield GsImageLoader.findAutoBox(GsImageLoader.load(file, page, cropShift, this)) + cropShift
+      yield GsImageLoader.findAutoBox(GsImageLoader.load(file, page, cropShift, this)).shiftUpperLeft(cropShift)
 
     // set the new crop box using the minimum/maximum values of the collected crops
     if (!crops.isEmpty) {
       if (settings.twoPages) {
-          // build streams of crops - the first containing the odd (first, third, etc.) elements - the second the even
-          def part(i: Int): Stream[CropBox] = crops(i) #:: part(i + 2)
+        // build streams of crops - the first containing the odd (first, third, etc.) elements - the second the even
+        def part(i: Int): Stream[CropBox] = crops(i) #:: part(i + 2)
         val boxes = Array(
           part(0).take((count + 1) / 2),
           part(1).take(count / 2)).map(crops2 =>
@@ -182,8 +181,7 @@ abstract class CropLogic extends CropSettings {
 
         setCropBoxes(if ((first & 1) == 1) boxes else boxes.reverse)
         updateImages
-      }
-      else {
+      } else {
         setCropBox(0, CropBox(crops.map(_.x0).min, crops.map(_.y0).min, crops.map(_.x1).max, crops.map(_.y1).max))
       }
     }
@@ -222,8 +220,8 @@ object CropLogic {
 
   case class LoadImage(pdf: File, page: Int, crop: CropBox, cropLogic: CropLogic, index: Int)
   case class FinishedLoading(cropLogic: CropLogic, image: BufferedImage, index: Int)
-  
-  def onExit : Unit = {
+
+  def onExit: Unit = {
     system.shutdown
   }
 
@@ -233,17 +231,17 @@ object CropLogic {
     def receive = {
       case loadImage: LoadImage =>
         if (loading) {
-            // kill the old and create a new updater
-            updaters(loadImage.index) ! PoisonPill
-            updaters(loadImage.index) = system.actorOf(Props[ImageUpdater], s"updater${count}_${loadImage.index}")   
-            count += 1
+          // kill the old and create a new updater
+          updaters(loadImage.index) ! PoisonPill
+          updaters(loadImage.index) = system.actorOf(Props[ImageUpdater], s"updater${count}_${loadImage.index}")
+          count += 1
         }
         updaters(loadImage.index) ! loadImage
         loading = true
       case FinishedLoading(cropLogic, image, index) =>
         if (sender == updaters(index)) {
-        	cropLogic.onUpdateImage(image, index)
-        	loading = false
+          cropLogic.onUpdateImage(image, index)
+          loading = false
         }
     }
   }
